@@ -1,6 +1,6 @@
 import requests
 
-url = "https://example.com/api/endpoint"
+url = "https://tvpass.org/channel/cnn-us"
 params = {
     "token": "...",
     "user_id": "...",
