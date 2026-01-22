@@ -1,29 +1,32 @@
-from playwright.sync_api import sync_playwright
-from urllib.parse import urlparse, parse_qs
-import time
-import sys
+import os
+import subprocess
 
-CHANNEL = sys.argv[1]
-SRC_FILE = f”/opt/iptv/sources/{CHANNEL}.txt”
+# Path to your channel source text files
+SOURCE_DIR = "/opt/iptv/sources/"
+# Path where the NGINX map will be saved
+MAP_FILE_PATH = "/etc/nginx/conf.d/channel_map.map"
 
-with open(SRC_FILE, “r”) as f:
-    Lines = f.read().splitlines()
+channels_map = []
 
-URL = lines[1]
+# 1. Loop through every .txt file in your source folder
+for filename in os.listdir(SOURCE_DIR):
+    if filename.endswith(".txt"):
+        channel_name = filename.replace(".txt", "")
+        with open(os.path.join(SOURCE_DIR, filename), "r") as f:
+            lines = f.read().splitlines()
+            if len(lines) >= 1:
+                # The script assumes the first line is the latest scraped .m3u8 URL
+                current_m3u8 = lines[0]
+                # Format for NGINX map:  /relative/path  "https://full-source-url";
+                channels_map.append(f"~^/streams/{channel_name}/ \"{current_m3u8}\";")
 
-with sync_playwright() as p:
-    browser = p.chromium.launch(headless=True)
-    page = browser.new_page()
+# 2. Write the NGINX Map file
+with open(MAP_FILE_PATH, "w") as f:
+    f.write("map $uri $backend_url {\n")
+    f.write("    default \"http://127.0.0.1/error\";\n")
+    f.write("\n".join(channels_map))
+    f.write("\n}\n")
 
-    def handle_request(request):
-        if ".m3u8" in request.url and “token” in request.url or “.m3u8” in request.url and “tv/cl” in request.url:
-            m3u8_url = request.url
-
-with open(SRC_FILE, "w") as f:
-    f.write(“{m3u8_url}\n{URL}”)
-
-print("URL saved to cnn_hd2.txt")
-    page.on("request", handle_request)
-    page.goto(URL)
-    page.wait_for_timeout(5000)  # wait a few seconds for requests to fire
-    browser.close()
+# 3. Tell NGINX to reload the new map (no downtime)
+subprocess.run(["sudo", "nginx", "-s", "reload"])
+print(f"Updated {len(channels_map)} channels in NGINX map.")
