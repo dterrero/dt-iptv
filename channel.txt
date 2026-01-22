@@ -1,2 +1,2 @@
-https://d35j504z0x2vu2.cloudfront.net/v1/manifest/0bc8e8376bd8417a1b6761138aa41c26c7309312/billiard-tv/0e0ffdc5-5427-44f5-b35b-7edc933dd2de/4.m3u8
-https://www.distro.tv/live/billiard-tv/
+https://d35j504z0x2vu2.cloudfront.net/v1/manifest/0bc8e8376bd8417a1b6761138aa41c26c7309312/cinelife/c059cdda-d42a-4259-b459-5c8933fa0a41/2.m3u8
+https://www.distro.tv/live/cinelife/
