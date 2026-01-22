@@ -1,19 +1,29 @@
-server {
-    listen 80;
-    server_name _;
+from playwright.sync_api import sync_playwright
+from urllib.parse import urlparse, parse_qs
+import time
+import sys
 
-    # Optional: logging
-    access_log /opt/iptv/logs/iptv_access.log;
-    error_log /opt/iptv/logs/iptv_error.log;
+CHANNEL = sys.argv[1]
+SRC_FILE = f”/opt/iptv/sources/{CHANNEL}.txt”
 
-    # Reverse proxy for IPTV channels
-    location /streams/ {
-        proxy_pass http://SOURCE_IP_OR_DOMAIN/;  # replace with actual source URL
-        proxy_buffering off;
-        proxy_cache off;
+with open(SRC_FILE, “r”) as f:
+    Lines = f.read().splitlines()
 
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-}
+URL = lines[1]
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True)
+    page = browser.new_page()
+
+    def handle_request(request):
+        if ".m3u8" in request.url and “token” in request.url or “.m3u8” in request.url and “tv/cl” in request.url:
+            m3u8_url = request.url
+
+with open(SRC_FILE, "w") as f:
+    f.write(“{m3u8_url}\n{URL}”)
+
+print("URL saved to cnn_hd2.txt")
+    page.on("request", handle_request)
+    page.goto(URL)
+    page.wait_for_timeout(5000)  # wait a few seconds for requests to fire
+    browser.close()
