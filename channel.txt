@@ -1,32 +1,89 @@
 import os
 import subprocess
+import time
+from playwright.sync_api import sync_playwright
 
-# Path to your channel source text files
+# --- CONFIGURATION ---
 SOURCE_DIR = "/opt/iptv/sources/"
-# Path where the NGINX map will be saved
 MAP_FILE_PATH = "/etc/nginx/conf.d/channel_map.map"
+TEMP_MAP_PATH = "/tmp/channel_map.tmp"
 
-channels_map = []
+def scrape_channel(channel_name, source_url):
+    """Attempt to scrape a single channel with a 15-second timeout."""
+    found_url = None
+    
+    with sync_playwright() as p:
+        try:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+            page = context.new_page()
 
-# 1. Loop through every .txt file in your source folder
-for filename in os.listdir(SOURCE_DIR):
-    if filename.endswith(".txt"):
-        channel_name = filename.replace(".txt", "")
-        with open(os.path.join(SOURCE_DIR, filename), "r") as f:
+            # Listen for network requests
+            def handle_request(request):
+                nonlocal found_url
+                if ".m3u8" in request.url and ("token" in request.url or "tv/cl" in request.url):
+                    found_url = request.url
+
+            page.on("request", handle_request)
+            
+            # Navigate with a timeout
+            page.goto(source_url, wait_until="networkidle", timeout=15000)
+            
+            # Give it a few extra seconds to fire late requests
+            time.sleep(3) 
+            browser.close()
+            return found_url
+        except Exception as e:
+            print(f"Error scraping {channel_name}: {e}")
+            return None
+
+def update_nginx():
+    channels_data = []
+    
+    # 1. Loop through all .txt files
+    for filename in os.listdir(SOURCE_DIR):
+        if not filename.endswith(".txt"): continue
+        
+        channel_id = filename.replace(".txt", "")
+        file_path = os.path.join(SOURCE_DIR, filename)
+        
+        with open(file_path, "r") as f:
             lines = f.read().splitlines()
-            if len(lines) >= 1:
-                # The script assumes the first line is the latest scraped .m3u8 URL
-                current_m3u8 = lines[0]
-                # Format for NGINX map:  /relative/path  "https://full-source-url";
-                channels_map.append(f"~^/streams/{channel_name}/ \"{current_m3u8}\";")
+            if len(lines) < 2: continue
+            
+            last_good_url = lines[0]
+            landing_page = lines[1]
 
-# 2. Write the NGINX Map file
-with open(MAP_FILE_PATH, "w") as f:
-    f.write("map $uri $backend_url {\n")
-    f.write("    default \"http://127.0.0.1/error\";\n")
-    f.write("\n".join(channels_map))
-    f.write("\n}\n")
+        print(f"Scraping {channel_id}...")
+        new_url = scrape_channel(channel_id, landing_page)
 
-# 3. Tell NGINX to reload the new map (no downtime)
-subprocess.run(["sudo", "nginx", "-s", "reload"])
-print(f"Updated {len(channels_map)} channels in NGINX map.")
+        if new_url:
+            # Update the text file with the new URL for next time
+            with open(file_path, "w") as f:
+                f.write(f"{new_url}\n{landing_page}")
+            channels_data.append(f"~^/streams/{channel_id}/ \"{new_url}\";")
+        else:
+            # Fallback: Use the last known good URL so the channel stays up
+            print(f"Warning: Scrape failed for {channel_id}. Using cached URL.")
+            channels_data.append(f"~^/streams/{channel_id}/ \"{last_good_url}\";")
+
+    # 2. Write the Temp Map File
+    with open(TEMP_MAP_PATH, "w") as f:
+        f.write("map $request_uri $backend_url {\n")
+        f.write("    default \"http://127.0.0.1/error\";\n")
+        f.write("\n".join(channels_data))
+        f.write("\n}\n")
+
+    # 3. Security Check: Validate Nginx syntax before moving & reloading
+    # We copy to the final path only if it's safe
+    subprocess.run(["sudo", "cp", TEMP_MAP_PATH, MAP_FILE_PATH])
+    result = subprocess.run(["sudo", "nginx", "-t"], capture_output=True, text=True)
+    
+    if result.returncode == 0:
+        subprocess.run(["sudo", "nginx", "-s", "reload"])
+        print("NGINX updated and reloaded successfully.")
+    else:
+        print("NGINX config test failed! Not reloading. Errors:\n", result.stderr)
+
+if __name__ == "__main__":
+    update_nginx()
