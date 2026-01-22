@@ -1,2 +1,2 @@
-https://livetvde.net/msnbcv12/tracks-v1a1/mono.m3u8?token=3d17912e6cc278a973221e748909dfe59eb50476-92ddfd27c4dff3db1775b8c1d1d52e13-1769119782-1769108982
-https://www.livehdtv.com/ch94/
+https://amg00327-coxmediagroup-wfxtnow-ono-00yau.amagi.tv/ts-us-e2-n2/playlist/amg00327-coxmediagroup-wfxtnow-ono/5e03744f-f7c6-11f0-a23d-5aee88c6bab0/158/848x480_1686360/index.m3u8
+https://www.livehdtv.com/fox-25-boston/
