@@ -1,0 +1,28 @@
+location ~ ^/streams/(?<channel>[^/]+)(/?(?<suffix>.*))$ {
+    resolver 8.8.8.8;
+
+    # 1. Critical: Tell the provider which website you are "visiting"
+    proxy_set_header Host livetvde.net;
+    proxy_set_header Referer "https://www.livehdtv.com/";
+    proxy_set_header User-Agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
+    # 2. SSL Handshake Fix (SNI)
+    proxy_ssl_server_name on;
+    proxy_ssl_name livetvde.net;
+    proxy_ssl_protocols TLSv1.2 TLSv1.3;
+
+    # 3. Dynamic Proxy Pass
+    proxy_pass $backend_url$suffix$is_args$args;
+
+    # 4. Handle Large Headers & Buffering
+    proxy_buffer_size 16k;
+    proxy_buffers 64 4k;
+    proxy_busy_buffers_size 24k;
+    proxy_buffering off;
+
+    # 5. Path Masking
+    proxy_set_header Accept-Encoding ""; # Required for sub_filter to work
+    sub_filter_types *;
+    sub_filter 'https://livetvde.net' 'http://10.0.0.185';
+    sub_filter_once off;
+}
