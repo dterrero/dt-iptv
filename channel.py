@@ -4,45 +4,43 @@ import subprocess
 SOURCE_DIR = "/opt/iptv/sources/"
 MAP_FILE_PATH = "/etc/nginx/conf.d/channel_map.map"
 
-def generate_map():
-    channels_map = []
+def generate_combined_map():
+    channels_data = []
     
-    # os.walk(dir) returns: (current_path, sub_folders, files_in_path)
+    # root = current folder, dirs = subfolders, files = files in current folder
     for root, dirs, files in os.walk(SOURCE_DIR):
         for filename in files:
             if filename.endswith(".txt"):
-                # Path to the file (e.g., /opt/iptv/sources/livetvde/msnbc.txt)
+                # Construct full path to read the file
                 file_path = os.path.join(root, filename)
-                
-                # Channel name is just the filename (e.g., msnbc)
-                channel_name = filename.replace(".txt", "")
+                channel_id = filename.replace(".txt", "")
                 
                 try:
                     with open(file_path, "r") as f:
                         lines = f.read().splitlines()
                         if lines:
-                            current_m3u8 = lines[0]
-                            # Single tilde (~) for regex, escape the quotes
-                            channels_map.append(f"~^/streams/{channel_name}/ \"{current_m3u8}\";")
+                            # The first line is your scraped .m3u8 URL
+                            m3u8_url = lines[0]
+                            # Use a SINGLE tilde (~) for NGINX regex
+                            channels_data.append(f"    ~^/streams/{channel_id}/ \"{m3u8_url}\";")
                 except Exception as e:
                     print(f"Error reading {filename}: {e}")
 
-    # Write to the file
+    # Write the complete map file
     with open(MAP_FILE_PATH, "w") as f:
         f.write("map $request_uri $backend_url {\n")
-        f.write("    default \"http://127.0.0.1/error\";\n")
-        f.write("\n".join(channels_map))
+        f.write("    default \"http://127.0.0.1/error\";\n\n")
+        f.write("\n".join(channels_data))
         f.write("\n}\n")
 
-    # Final Nginx check and reload
-    # Make sure 'gninx' is corrected to 'nginx' here!
-    result = subprocess.run(["sudo", "nginx", "-t"], capture_output=True, text=True)
-    if result.returncode == 0:
+    # Correct 'gninx' to 'nginx' and check configuration
+    check = subprocess.run(["sudo", "nginx", "-t"], capture_output=True, text=True)
+    if check.returncode == 0:
         subprocess.run(["sudo", "nginx", "-s", "reload"])
-        print("Success: Map updated and Nginx reloaded.")
+        print("Success: Combined map updated and NGINX reloaded.")
     else:
-        print("Error: Nginx config is invalid!")
-        print(result.stderr)
+        print("Error: NGINX syntax check failed!")
+        print(check.stderr)
 
 if __name__ == "__main__":
-    generate_map()
+    generate_combined_map()
