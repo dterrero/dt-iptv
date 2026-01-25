@@ -1,0 +1,22 @@
+[Unit]
+Description=CBS News On-Demand HLS
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/ffmpeg \
+ -loglevel error \
+ -user_agent "Mozilla/5.0" \
+ -i https://cbsn-us.cbsnstream.cbsnews.com/out/v1/55a8648e8f134e82a470f83d562deeca/master.m3u8 \
+ -c copy \
+ -f hls \
+ -hls_time 4 \
+ -hls_list_size 6 \
+ -hls_flags delete_segments+append_list+omit_endlist \
+ /opt/iptv/cbs/index.m3u8
+
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
